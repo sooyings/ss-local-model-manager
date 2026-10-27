@@ -11,7 +11,7 @@ $app=Join-Path $target 'SSLocalModelManager.exe'
 if (!(Test-Path $app)) { throw 'Installed entry missing' }
 function App([string[]]$Arguments) {
  $p=Start-Process -FilePath $app -ArgumentList $Arguments -PassThru -Wait -WindowStyle Hidden
- if ($p.ExitCode) { throw "Application failed: $Arguments, exit $($p.ExitCode)" }
+ if ($p.ExitCode) { Get-ChildItem $env:SS_MODEL_DATA_ROOT -Recurse -Filter "*fatal*" -ErrorAction SilentlyContinue | ForEach-Object { Get-Content $_.FullName }; Get-WinEvent -FilterHashtable @{LogName="Application";StartTime=(Get-Date).AddMinutes(-5)} -ErrorAction SilentlyContinue | Where-Object { $_.Id -in @(1000,1026) } | Select-Object -First 4 -ExpandProperty Message; throw "Application failed: $Arguments, exit $($p.ExitCode)" }
 }
 App @('--selftest')
 # Test weights are downloaded only on the disposable GitHub runner; never shipped.

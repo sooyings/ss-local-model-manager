@@ -1,7 +1,7 @@
 name: Windows build and verification
 on:
   push:
-    branches: [main, release/beta-4]
+    branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -40,3 +40,34 @@ jobs:
             dist/
             tests/bin/Release/net10.0-windows/
           retention-days: 14
+
+  diagnose:
+    runs-on: windows-2025
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ss-windows-verification
+          run-id: 40536229374
+          github-token: ${{ github.token }}
+          path: previous
+      - name: Diagnose installed application startup
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $test=Join-Path $env:RUNNER_TEMP ('ss-diagnose-'+[Guid]::NewGuid().ToString('N'))
+          New-Item $test -ItemType Directory | Out-Null
+          $target=Join-Path $test 'app'
+          $env:SS_MODEL_DATA_ROOT=Join-Path $test 'data'
+          $setup=Get-ChildItem previous -Recurse -Filter '*Setup.exe' | Select-Object -First 1
+          $p=Start-Process $setup.FullName -ArgumentList '--unattended','--accept-license','--no-icons','--dir',('"{0}"' -f $target) -Wait -PassThru -WindowStyle Hidden
+          Write-Host "Install exit: $($p.ExitCode)"
+          $stderr=Join-Path $test 'stderr.txt'
+          $p=Start-Process (Join-Path $target 'SSLocalModelManager.exe') -ArgumentList '--selftest' -RedirectStandardError $stderr -Wait -PassThru -WindowStyle Hidden
+          Write-Host "App exit: $($p.ExitCode)"
+          Get-Content $stderr -ErrorAction SilentlyContinue
+          Get-ChildItem $env:SS_MODEL_DATA_ROOT -Recurse -Filter '*fatal*' -ErrorAction SilentlyContinue | ForEach-Object { Get-Content $_.FullName }
+          Get-WinEvent -FilterHashtable @{LogName='Application';StartTime=(Get-Date).AddMinutes(-5)} -ErrorAction SilentlyContinue | Where-Object { $_.Id -in @(1000,1026) } | Select-Object -First 6 -ExpandProperty Message
