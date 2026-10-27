@@ -7,7 +7,7 @@ try {
  $checks = Join-Path $root 'tests/bin/Release/net10.0-windows/SS.Checks.dll'
  Push-Location data/tuning
  try {
-  foreach ($test in @('PathChecks','DiscoveryChecks','NativeHostTests','GatewayIntegrationTests','AdviceChecks','SetupProtocolChecks')) {
+  foreach ($test in @('PathChecks','DiscoveryChecks','NativeHostTests','RecoveryChecks','GatewayIntegrationTests','AdviceChecks','SetupProtocolChecks')) {
    dotnet $checks $test
    if ($LASTEXITCODE) { throw "$test failed" }
   }

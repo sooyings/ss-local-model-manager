@@ -1,10 +1,9 @@
-param([string]$Iscc)
+param([string]$Iscc,[switch]$SkipSmoke,[switch]$SkipChecks)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
 Set-Location $root
 New-Item build,publish/app,dist,third-party -ItemType Directory -Force | Out-Null
-& "$PSScriptRoot/check.ps1"
-if ($LASTEXITCODE) { throw 'Checks failed' }
+if (!$SkipChecks) { & "$PSScriptRoot/check.ps1"; if ($LASTEXITCODE) { throw 'Checks failed' } }
 # Build the CPU engine from a pinned official source revision. No private runtime is copied.
 if (!(Test-Path build/llama-source/.git)) {
  git clone --depth 1 --branch b11901 https://github.com/ggml-org/llama.cpp.git build/llama-source
@@ -61,6 +60,5 @@ $hash = (Get-FileHash build/SS.CoreSetup.exe).Hash.ToLowerInvariant()
 dotnet publish src/SS.Setup/SS.Setup.csproj -c Release -o publish/setup
 if ($LASTEXITCODE) { throw 'Setup front end publish failed' }
 Copy-Item publish/setup/SSLocalModelManager-Setup.exe dist/SSLocalModelManager-4.0.0-beta.1-win-x64-Setup.exe
-& "$PSScriptRoot/smoke.ps1"
-if ($LASTEXITCODE) { throw 'Installed application smoke failed' }
+if (!$SkipSmoke) { & "$PSScriptRoot/smoke.ps1"; if ($LASTEXITCODE) { throw 'Installed application smoke failed' } }
 Get-ChildItem dist/*.exe | ForEach-Object { ((Get-FileHash $_.FullName).Hash.ToLowerInvariant()+'  '+$_.Name) } | Set-Content dist/SHA256SUMS.txt -Encoding ascii

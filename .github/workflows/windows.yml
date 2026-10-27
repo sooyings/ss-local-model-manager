@@ -7,21 +7,39 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
+  cleanup-old-run:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: Cancel superseded diagnostic run
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run cancel 40538342464 --repo sooyings/ss-local-model-manager
   verify:
     runs-on: windows-2025
-    timeout-minutes: 55
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
       - uses: actions/cache@v4
+        id: native-cache
         with:
           path: |
             build/llama-source
             build/llama-build
           key: ss-static-cpu-b11901-v2-windows2025
+      - name: Core regression checks
+        shell: pwsh
+        run: ./scripts/check.ps1
       - name: Prepare isolated installer compiler
         shell: pwsh
         run: |
@@ -34,9 +52,21 @@ jobs:
           $p=Start-Process $exe -ArgumentList '/CURRENTUSER','/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-',('/DIR="{0}"' -f $dir) -PassThru -Wait -WindowStyle Hidden
           if ($p.ExitCode -or !(Test-Path "$dir/ISCC.exe")) { throw 'Compiler installation failed' }
           "SS_ISCC=$dir/ISCC.exe" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
-      - name: Build, install and run real inference
+      - name: Build self-contained application and installer
         shell: pwsh
-        run: ./scripts/build.ps1 -Iscc "$env:SS_ISCC"
+        run: ./scripts/build.ps1 -Iscc "$env:SS_ISCC" -SkipChecks -SkipSmoke
+      - name: Save validated native build cache
+        if: steps.native-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            build/llama-source
+            build/llama-build
+          key: ss-static-cpu-b11901-v2-windows2025
+      - name: Install, real CPU inference, KV, restart and uninstall
+        shell: pwsh
+        timeout-minutes: 12
+        run: ./scripts/smoke.ps1
       - name: Preserve verification output
         if: always()
         uses: actions/upload-artifact@v4

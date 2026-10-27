@@ -112,6 +112,8 @@ namespace SS.Core {
   }
   static Dictionary<string,object> Lease(){try{return Read(LeasePath);}catch{return null;}}
   public static string RunningAlias(){var l=Lease();return Owned(l)?Str(l,"alias"):"";}
+  public static string OwnedSessionId(){var l=Lease();return Owned(l)?Str(l,"sessionId"):"";}
+  public static int OwnedEnginePid(){var l=Lease();return Owned(l)?Int(l,"enginePid"):0;}
   static string StatusPath(string session,string prefix){return Path.Combine(AppPaths.DataRoot,"transactions",prefix+session+".json");}
   static Mutex Gate(){return new Mutex(false,@"Local\SSLocalModelManager.ServiceControl");}
   static bool Lock(Mutex m){try{return m.WaitOne(0);}catch(AbandonedMutexException){return true;}}
@@ -119,9 +121,24 @@ namespace SS.Core {
   public static void Use(string id){
    using(var gate=Gate()){if(!Lock(gate))Fail("service_busy");try{Model(id);AppPaths.AtomicWrite(ActivePath,Json.Serialize(new Dictionary<string,object>{{"id",id}}));}finally{gate.ReleaseMutex();}}
   }
+  static bool OriginalProcessGone(int pid,DateTime started){
+   if(pid<=0||started==DateTime.MinValue)return false;
+   try{using(var p=Process.GetProcessById(pid)){if(p.HasExited)return true;return Math.Abs((p.StartTime.ToUniversalTime()-started.ToUniversalTime()).TotalSeconds)>.5;}}
+   catch(ArgumentException){return true;}catch{return false;}
+  }
+  static bool DiscardDeadLease(Dictionary<string,object> lease){
+   if(lease==null||!Regex.IsMatch(Str(lease,"sessionId"),@"\A[0-9a-f]{32}\z")||!ValidId(Str(lease,"modelId"))||!ValidId(Str(lease,"alias"))||Int(lease,"port")!=AppPaths.DirectPort)return false;
+   string expected=Path.Combine(RuntimePath,"llama-server.exe");string path=Str(lease,"enginePath");
+   try{if(!Path.GetFullPath(path).Equals(expected,StringComparison.OrdinalIgnoreCase))return false;}catch{return false;}
+   if(!OriginalProcessGone(Int(lease,"hostPid"),Utc(lease,"hostStartUtc"))||!OriginalProcessGone(Int(lease,"enginePid"),Utc(lease,"engineStartUtc")))return false;
+   File.Delete(LeasePath);return true;
+  }
+  public static bool RecoverStoppedService(){
+   using(var gate=Gate()){if(!Lock(gate))return false;try{return DiscardDeadLease(Lease());}finally{gate.ReleaseMutex();}}
+  }
   public static void Start(string id){
    AppPaths.Initialize();using(var gate=Gate()){if(!Lock(gate))Fail("service_busy");try{
-    var old=Lease();if(old!=null){if(Owned(old)&&Str(old,"modelId")==id)return;Fail("existing_or_stale_service");}
+    var old=Lease();if(old!=null){if(Owned(old)&&Str(old,"modelId")==id)return;if(!DiscardDeadLease(old))Fail("existing_or_stale_service");}
     var m=Model(id);if(AnyExternalEngine())Fail("external_model_running");RuntimeTrust.Require(RuntimePath);VerifyEngine(RuntimePath);
     var probe=new System.Net.Sockets.TcpListener(IPAddress.Loopback,AppPaths.DirectPort);try{probe.Start();}catch{Fail("port_in_use");}finally{probe.Stop();}
     var p=Process.Start(new ProcessStartInfo(HostExe,"--host "+id){UseShellExecute=false,CreateNoWindow=true,WindowStyle=ProcessWindowStyle.Hidden});
@@ -150,7 +167,9 @@ namespace SS.Core {
     string path=StatusPath(session,"stop-request-");if(File.Exists(path))Fail("stop_already_pending");
     AppPaths.AtomicWrite(path,Json.Serialize(new Dictionary<string,object>{{"sessionId",session},{"requestId",request},{"deadlineUtc",DateTime.UtcNow.AddSeconds(6).ToString("o")}}));
     string response=StatusPath(session,"stop-result-");var until=DateTime.UtcNow.AddSeconds(15);
-    while(DateTime.UtcNow<until){Dictionary<string,object> result=null;try{result=Read(response);}catch{}if(Str(result,"requestId")==request){if(Str(result,"status")=="stopped")return;Fail(Str(result,"status"));}Thread.Sleep(100);}
+    while(DateTime.UtcNow<until){Dictionary<string,object> result=null;try{result=Read(response);}catch{}if(Str(result,"requestId")==request){if(Str(result,"status")=="stopped"){
+      var cleaned=DateTime.UtcNow.AddSeconds(5);while(DateTime.UtcNow<cleaned){var remaining=Lease();if(!File.Exists(LeasePath))return;if(remaining!=null&&Str(remaining,"sessionId")!=session)Fail("service_session_changed");Thread.Sleep(25);}Fail("stop_cleanup_pending");
+     }Fail(Str(result,"status"));}Thread.Sleep(100);}
     Fail("stop_not_confirmed");
    }finally{gate.ReleaseMutex();}}
   }

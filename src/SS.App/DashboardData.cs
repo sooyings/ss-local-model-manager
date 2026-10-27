@@ -79,7 +79,7 @@ public class Collector {
  public Collector(string logPath,string recordsPath){logs=new TailReader(logPath);records=new TailReader(recordsPath);}
  public virtual object Read(string path){if(SS.Core.NativeHost.RunningAlias()=="")throw new InvalidOperationException("no_owned_service");var req=(HttpWebRequest)WebRequest.Create(SS.Core.AppPaths.DirectBaseUrl+path);req.Proxy=null;req.Timeout=1100;req.ReadWriteTimeout=1100;using(var response=req.GetResponse())using(var reader=new StreamReader(response.GetResponseStream())){return json.DeserializeObject(reader.ReadToEnd());}}
  object TryRead(string path){try{return Read(path);}catch{return null;}}
- protected virtual string Session(){try{return File.ReadAllText(Root+@"\logs\llama.pid").Trim();}catch{return "";}}
+ protected virtual string Session(){return SS.Core.NativeHost.OwnedSessionId();}
  void Reset(string actual,string current){model=actual;session=current;kvLog=new KvLogReader();core.Reset(model);decodeLog=new DecodeLogState();observed.Reset(model,Now());acceptedAfter=Now();logs.Skip();records.Skip();logRequests=0;logInput=0;logOutput=0;lastLogPrefill=null;logIds.Clear();pending.Clear();}
  public Snapshot Poll(){
   object ids=TryRead("/v1/models");var models=Adapter.List(Adapter.Get(ids,"data"));string actual=models.Count>0?Adapter.Str(models[0],"id"):"";
@@ -103,8 +103,9 @@ public class Collector {
   ReadKv(s,entry,current);
   string verifiedSession=Session();if(verifiedSession!=""&&current!=""&&verifiedSession!=current){Reset("",verifiedSession);return new Snapshot{Phase="reconnecting",Note="服务正在切换，等待新采样"};}var verifyModels=Adapter.List(Adapter.Get(TryRead("/v1/models"),"data"));if(verifyModels.Count==0)return new Snapshot{Phase="reconnecting",Note="复核身份暂不可读，保留累计等待恢复"};string verifiedAlias=Adapter.Str(verifyModels[0],"id");if(verifiedAlias!=""&&verifiedAlias!=actual){Reset(verifiedAlias,current);return new Snapshot{Phase="reconnecting",Note="模型正在切换，等待新采样"};}if(!s.VramTotal.HasValue)SampleHardware(s);return s;
  }
- void ReadKv(Snapshot s,object entry,string pid){
+ void ReadKv(Snapshot s,object entry,string sessionKey){
   try {
+   if(sessionKey==""||sessionKey!=SS.Core.NativeHost.OwnedSessionId())return;string pid=SS.Core.NativeHost.OwnedEnginePid().ToString(CultureInfo.InvariantCulture);
    DateTime started=Process.GetProcessById(int.Parse(pid)).StartTime;string file=Root+@"\logs\llama.log";
    if(s.Runtime=="Strata"){
     string configPath=Path.GetFullPath(Path.Combine(Root,Adapter.Str(entry,"runtimeConfig")));
@@ -131,7 +132,7 @@ public class Collector {
  }
  static Regex logPrompt=new Regex(@"prompt eval time\s*=\s*[\d.]+ ms /\s*(\d+) tokens.*?,\s*([\d.]+) tokens per second");static Regex logDecode=new Regex(@"\|\s+eval time\s*=\s*[\d.]+ ms /\s*(\d+) tokens");static Regex task=new Regex(@"id\s+(\d+)\s*\|\s*task\s+(\d+)");Dictionary<string,double> pending=new Dictionary<string,double>();
  void CountLog(string line){var key=task.Match(line);if(!key.Success)return;string id=key.Groups[1].Value+":"+key.Groups[2].Value;var p=logPrompt.Match(line);if(p.Success){pending[id]=double.Parse(p.Groups[1].Value,CultureInfo.InvariantCulture);lastLogPrefill=double.Parse(p.Groups[2].Value,CultureInfo.InvariantCulture);}var d=logDecode.Match(line);if(d.Success&&logIds.Add(id)){logRequests=(logRequests??0)+1;double prompt;if(pending.TryGetValue(id,out prompt))logInput+=prompt;else logInput=null;logOutput+=double.Parse(d.Groups[1].Value,CultureInfo.InvariantCulture);pending.Remove(id);}}
- protected virtual bool Loading(){try{int pid=int.Parse(Session());var p=Process.GetProcessById(pid);return !p.HasExited;}catch{return false;}}
+ protected virtual bool Loading(){return SS.Core.NativeHost.OwnedEnginePid()>0;}
  protected virtual void SampleHardware(Snapshot s){Hardware(s);}
  public static void Hardware(Snapshot s){try{var info=new ProcessStartInfo(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System),"nvidia-smi.exe"),"--query-gpu=name,utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw --format=csv,noheader,nounits"){UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true};using(var p=Process.Start(info)){if(!p.WaitForExit(1800)){p.Kill();return;}string[] a=p.StandardOutput.ReadToEnd().Split('\n')[0].Trim().Split(',');if(a.Length<6)return;s.GpuName=a[0].Trim();double v;if(double.TryParse(a[1],NumberStyles.Float,CultureInfo.InvariantCulture,out v))s.GpuUtil=v;if(double.TryParse(a[2],NumberStyles.Float,CultureInfo.InvariantCulture,out v))s.VramUsed=v/1024;if(double.TryParse(a[3],NumberStyles.Float,CultureInfo.InvariantCulture,out v))s.VramTotal=v/1024;if(double.TryParse(a[4],NumberStyles.Float,CultureInfo.InvariantCulture,out v))s.Temp=v;if(double.TryParse(a[5],NumberStyles.Float,CultureInfo.InvariantCulture,out v))s.Power=v;}}catch{}}
 }
