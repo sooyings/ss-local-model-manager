@@ -1,0 +1,7 @@
+build/
+publish/
+dist/
+**/bin/
+**/obj/
+*.user
+src/SS.Setup/ReleasePayload.g.cs

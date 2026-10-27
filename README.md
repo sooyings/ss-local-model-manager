@@ -21,7 +21,7 @@ Windows 本地模型管理、运行监控与参数配置工具。采用深浅主
 
 发行后按以下方式使用：
 
-1. 在 [Releases](https://github.com/sooyings/ss-local-model-manager/releases) 下载与 Windows x64 对应的 `SSLocalModelManager-…-Setup-win-x64.exe`。
+1. 在 [Releases](https://github.com/sooyings/ss-local-model-manager/releases) 下载与 Windows x64 对应的 `SSLocalModelManager-4.0.0-beta.1-win-x64-Setup.exe`。
 2. 双击安装包，确认安装目录和安装说明，点击“一键安装”。
 3. 等待进度与结果确认；安装完成后打开管理器。
 4. 使用模型库的“扫描”或“导入”，登记已有 GGUF。分片模型请选择第一片，所有分片须齐全。
@@ -50,7 +50,13 @@ Windows 本地模型管理、运行监控与参数配置工具。采用深浅主
 
 ## 截图
 
-将上传本批构建的实际界面截图，不使用旧版本截图冒充新版。
+以下为本批开发构建的实际界面。模型库使用空的隔离数据目录；横线表示尚未运行模型，安装图为真实安装前端的准备状态。
+
+![总览深色](docs/screenshots/dashboard-dark.png)
+
+![监控浅色](docs/screenshots/monitor-light.png)
+
+![安装界面](docs/screenshots/installer.png)
 
 ## 开发与许可
 

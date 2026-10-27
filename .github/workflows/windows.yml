@@ -1,0 +1,42 @@
+name: Windows build and verification
+on:
+  push:
+    branches: [main, release/beta-4]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: windows-2025
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Prepare isolated installer compiler
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $dir=Join-Path $env:RUNNER_TEMP 'ss-inno'
+          $exe=Join-Path $env:RUNNER_TEMP 'innosetup-6.7.3.exe'
+          Invoke-WebRequest 'https://github.com/jrsoftware/issrc/releases/download/is-6_7_3/innosetup-6.7.3.exe' -OutFile $exe
+          $signature=Get-AuthenticodeSignature $exe
+          if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'Pyrsys B.V.') { throw 'Inno publisher signature validation failed' }
+          $p=Start-Process $exe -ArgumentList '/CURRENTUSER','/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-',('/DIR="{0}"' -f $dir) -PassThru -Wait -WindowStyle Hidden
+          if ($p.ExitCode -or !(Test-Path "$dir/ISCC.exe")) { throw 'Compiler installation failed' }
+          "SS_ISCC=$dir/ISCC.exe" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Build, install and run real inference
+        shell: pwsh
+        run: ./scripts/build.ps1 -Iscc "$env:SS_ISCC"
+      - name: Preserve verification output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ss-windows-verification
+          path: |
+            dist/
+            tests/bin/Release/net10.0-windows/
+          retention-days: 14
