@@ -11,8 +11,8 @@ if (!(Test-Path build/llama-source/.git)) {
  if ($LASTEXITCODE) { throw 'Official engine source download failed' }
 }
 $revision = (git -C build/llama-source rev-parse HEAD).Trim()
-if (!$revision.StartsWith('5320c87')) { throw "Unexpected official engine revision: $revision" }
-cmake -S build/llama-source -B build/llama-build -A x64 -DBUILD_SHARED_LIBS=OFF -DGGML_NATIVE=OFF -DGGML_OPENMP=OFF -DLLAMA_CURL=OFF -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_SERVER=ON -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
+if ($revision -ne '5320c87ff0d994845b44ce7976f10055ec697447') { throw "Unexpected official engine revision: $revision" }
+cmake -S build/llama-source -B build/llama-build -A x64 -DBUILD_SHARED_LIBS=OFF -DGGML_NATIVE=OFF -DGGML_OPENMP=OFF -DLLAMA_CURL=OFF -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_SERVER=ON -DLLAMA_SERVER_WEBUI=OFF -DCMAKE_POLICY_DEFAULT_CMP0091=NEW -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
 if ($LASTEXITCODE) { throw 'Engine configuration failed' }
 cmake --build build/llama-build --config Release --target llama-server -j 4
 if ($LASTEXITCODE) { throw 'Engine compilation failed' }
@@ -22,6 +22,8 @@ Copy-Item build/llama-build/bin/Release/llama-server.exe $runtime
 $notices = Join-Path $root 'publish/app/third-party/llama.cpp'
 New-Item $notices -ItemType Directory -Force | Out-Null
 Copy-Item build/llama-source/LICENSE $notices
+Copy-Item build/llama-source/vendor (Join-Path $notices "vendor") -Recurse
+$revision | Set-Content (Join-Path $notices "SOURCE-REVISION.txt") -Encoding ascii
 Get-ChildItem build/llama-source -Recurse -File | Where-Object { $_.Name -match '^(LICENSE|COPYING|NOTICE)(\.|-|$)' -and $_.FullName -notmatch '\\.git\\' } | ForEach-Object {
  $relative = [IO.Path]::GetRelativePath((Join-Path $root 'build/llama-source'),$_.FullName)
  $target = Join-Path $notices $relative

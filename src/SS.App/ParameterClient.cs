@@ -29,7 +29,7 @@ namespace ModelConsole {
    if(action=="save"){
     if(Text(Get(payload,"fingerprint"))!=Hash())throw new InvalidOperationException("configuration_changed");
     var changes=Get(payload,"changes") as Dictionary<string,object>;if(changes==null)throw new ArgumentException("invalid_changes");
-    foreach(var item in changes){int i=Array.IndexOf(Keys,item.Key);if(i<0)throw new ArgumentException("unsupported_key");double n=Number(item.Value,i);if(i<5)sampling[item.Key]=n;else model[item.Key]=n;}
+    foreach(var item in changes){int i=Array.IndexOf(Keys,item.Key);if(i<0||i>=6)throw new ArgumentException("unsupported_key");double n=Number(item.Value,i);if(i<5)sampling[item.Key]=n;else model[item.Key]=n;}
     model["parameters"]=sampling;
     if(NativeHost.RunningAlias()!=alias)throw new InvalidOperationException("model_changed");
     AppPaths.AtomicWrite(AppPaths.ModelsJson,Json.Serialize(root));
@@ -39,7 +39,7 @@ namespace ModelConsole {
    }
    if(action!="load")throw new ArgumentException("unsupported_action");
    var fields=new List<object>();
-   for(int i=0;i<Keys.Length;i++){object raw=i<5?Get(sampling,Keys[i]):Get(model,Keys[i]);double value=raw==null?Defaults[i]:Number(raw,i);
+   for(int i=0;i<6;i++){object raw=i<5?Get(sampling,Keys[i]):Get(model,Keys[i]);double value=raw==null?Defaults[i]:Number(raw,i);
     fields.Add(new Dictionary<string,object>{{"key",Keys[i]},{"zh",Zh[i]},{"en",En[i]},{"min",Min[i]},{"max",i==5?Math.Min(Max[i],Environment.ProcessorCount):Max[i]},{"integer",i>=5||i==2},{"value",value},{"recommendation",Pending()}});
    }
    if(NativeHost.RunningAlias()!=alias)throw new InvalidOperationException("model_changed");
