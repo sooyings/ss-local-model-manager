@@ -27,12 +27,18 @@ App @('--service','start',$id)
 $base='http://127.0.0.1:17881'
 $ready=$false
 for ($i=0;$i -lt 120;$i++) {
- try { $health=Invoke-RestMethod "$base/health" -TimeoutSec 3; if ($health.status -eq 'ok') { $ready=$true;break } } catch {}
+ try { $health=Invoke-RestMethod "$base/health" -NoProxy -TimeoutSec 3; if ($health.status -eq 'ok') { $ready=$true;break } } catch {}
  Start-Sleep -Seconds 1
 }
-if (!$ready) { throw 'Installed engine never became healthy' }
+if (!$ready) {
+ Get-ChildItem (Join-Path $env:SS_MODEL_DATA_ROOT 'logs') -Force | ForEach-Object { Write-Host $_.Name; Get-Content $_.FullName -Tail 100 }
+ Get-Content (Join-Path $env:SS_MODEL_DATA_ROOT 'transactions/native-host.json')
+ Get-NetTCPConnection -State Listen | Where-Object { $_.LocalAddress -eq '127.0.0.1' } | Select-Object LocalPort,OwningProcess
+ try { $response=Invoke-WebRequest "$base/health" -NoProxy -SkipHttpErrorCheck -TimeoutSec 5; Write-Host $response.StatusCode $response.Content } catch { Write-Host $_ }
+ throw 'Installed engine never became healthy'
+}
 $body=@{model=$id;messages=@(@{role='user';content='Reply in English with one word: hello. /no_think'});max_tokens=32;temperature=0;stream=$false} | ConvertTo-Json -Depth 6
-$reply=Invoke-RestMethod "$base/v1/chat/completions" -Method Post -ContentType 'application/json' -Body $body -TimeoutSec 180
+$reply=Invoke-RestMethod "$base/v1/chat/completions" -NoProxy -Method Post -ContentType 'application/json' -Body $body -TimeoutSec 180
 if (!$reply.choices -or $reply.usage.completion_tokens -lt 1) { throw 'Real inference returned no tokens' }
 $session=Get-Content (Join-Path $env:SS_MODEL_DATA_ROOT 'logs/llama-session.json') -Raw | ConvertFrom-Json
 if ($session.alias -ne $id -or !(Test-Path $session.log)) { throw 'KV session is not tied to this model' }

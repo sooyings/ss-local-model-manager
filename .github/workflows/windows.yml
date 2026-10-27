@@ -11,17 +11,6 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 jobs:
-  cleanup-old-run:
-    runs-on: ubuntu-latest
-    permissions:
-      actions: write
-      contents: read
-    steps:
-      - name: Cancel superseded diagnostic run
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh run cancel 40538342464 --repo sooyings/ss-local-model-manager
   verify:
     runs-on: windows-2025
     timeout-minutes: 45
