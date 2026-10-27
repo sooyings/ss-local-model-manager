@@ -39,7 +39,16 @@ dotnet publish src/SS.App/SS.App.csproj -c Release -o publish/app
 if ($LASTEXITCODE) { throw 'App publish failed' }
 dotnet publish src/SS.Power/SS.Power.csproj -c Release -o publish/power
 if ($LASTEXITCODE) { throw 'Power helper publish failed' }
-Copy-Item publish/power/* publish/app -Force -Recurse
+$wpfHash=(Get-FileHash publish/app/WindowsBase.dll).Hash
+Copy-Item publish/power/ModelConsolePower.* publish/app -Force
+if ((Get-FileHash publish/app/WindowsBase.dll).Hash -ne $wpfHash) { throw 'Power helper replaced WPF runtime' }
+$previousDataRoot=$env:SS_MODEL_DATA_ROOT
+try {
+ $env:SS_MODEL_DATA_ROOT=Join-Path $root 'build/preinstall-selftest'
+ $err=Join-Path $root 'build/preinstall-stderr.txt'
+ $p=Start-Process (Join-Path $root 'publish/app/SSLocalModelManager.exe') -ArgumentList '--selftest' -Wait -PassThru -WindowStyle Hidden -RedirectStandardError $err
+ if ($p.ExitCode) { Get-Content $err; throw 'Staged program selftest failed' }
+} finally { $env:SS_MODEL_DATA_ROOT=$previousDataRoot }
 New-Item publish/app/engines/runtime -ItemType Directory -Force | Out-Null
 Copy-Item "$runtime/*" publish/app/engines/runtime
 Copy-Item README.md publish/app/README.md
