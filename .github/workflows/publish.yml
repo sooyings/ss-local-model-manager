@@ -1,0 +1,100 @@
+name: Publish verified CPU beta
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/publish.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ss-publish-v4.0.0-beta.1
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: sooyings/ss-local-model-manager
+      VERIFIED_RUN: '40651717151'
+      VERIFIED_HEAD: e00f8ca960179e9a81ae7fc649d5773b32688618
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: e00f8ca960179e9a81ae7fc649d5773b32688618
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: ss-windows-verification
+          run-id: 40651717151
+          github-token: ${{ github.token }}
+          path: verified
+      - name: Validate, upload draft, verify assets and publish
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $run=gh api "repos/$env:GH_REPO/actions/runs/$env:VERIFIED_RUN" | ConvertFrom-Json
+          if ($LASTEXITCODE -or $run.conclusion -ne 'success' -or $run.head_sha -ne $env:VERIFIED_HEAD) { throw 'Pinned verification run is not successful at the reviewed revision' }
+          $report=Get-Content verified/dist/verification.json -Raw | ConvertFrom-Json
+          if ($report.version -ne '4.0.0-beta.1' -or $report.pageRenders -ne 9 -or $report.kvAllocationMiB -le 0) { throw 'Verification report scope mismatch' }
+          foreach ($field in @('unattendedInstall','realCpuInference','realStreaming','busySwitchPreservesEngine','idleSwitch','restart','uninstallPreservesModel')) {
+            if ($report.$field -ne $true) { throw "Verification gate missing: $field" }
+          }
+          $reviewedTree=gh api "repos/$env:GH_REPO/git/commits/$env:VERIFIED_HEAD" --jq '.tree.sha'
+          if ($LASTEXITCODE) { throw 'Cannot read reviewed source tree' }
+          $builtTree=gh api "repos/$env:GH_REPO/git/commits/$($report.sourceCommit)" --jq '.tree.sha'
+          if ($LASTEXITCODE -or $reviewedTree.Trim() -ne $builtTree.Trim()) { throw 'Built checkout and reviewed source tree differ' }
+          $exe='verified/dist/SSLocalModelManager-4.0.0-beta.1-win-x64-Setup.exe'
+          if ((Get-FileHash $exe).Hash.ToLowerInvariant() -ne $report.installerSha256) { throw 'Installer hash differs from verified report' }
+          $sum=Get-Content verified/dist/SHA256SUMS.txt -Raw
+          if (!$sum.Contains($report.installerSha256)) { throw 'Published checksum file differs from report' }
+          Compress-Archive -Path verified/dist/screenshots/* -DestinationPath verified/dist/SSLocalModelManager-4.0.0-beta.1-screenshots.zip
+          $assets=@($exe,'verified/dist/SHA256SUMS.txt','verified/dist/verification.json','verified/dist/SSLocalModelManager-4.0.0-beta.1-screenshots.zip')
+          $tag='v4.0.0-beta.1'
+          function Confirm-VerifiedTag([string]$name) {
+            $raw=gh api "repos/$env:GH_REPO/git/ref/tags/$name" 2>$null
+            if ($LASTEXITCODE) { throw 'Cannot resolve release tag' }
+            $object=($raw | ConvertFrom-Json).object
+            for ($depth=0;$depth -lt 8;$depth++) {
+              if ($object.type -eq 'commit') {
+                if ($object.sha -ne $env:VERIFIED_HEAD) { throw 'Existing release tag targets a different commit; it will not be moved' }
+                return
+              }
+              if ($object.type -ne 'tag') { throw 'Unsupported release tag object' }
+              $raw=gh api "repos/$env:GH_REPO/git/tags/$($object.sha)"
+              if ($LASTEXITCODE) { throw 'Cannot peel annotated release tag' }
+              $object=($raw | ConvertFrom-Json).object
+            }
+            throw 'Release tag nesting limit exceeded'
+          }
+          $existing=gh api "repos/$env:GH_REPO/git/ref/tags/$tag" 2>$null
+          if ($LASTEXITCODE) {
+            gh api --method POST "repos/$env:GH_REPO/git/refs" -f "ref=refs/tags/$tag" -f "sha=$env:VERIFIED_HEAD" | Out-Null
+            if ($LASTEXITCODE) { throw 'Cannot create immutable release tag' }
+          }
+          Confirm-VerifiedTag $tag
+          gh release create $tag @assets --verify-tag --draft --prerelease --title 'SS本地模型管理器 4.0.0-beta.1 · CPU测试版' --notes-file docs/RELEASE-NOTES-4.0.0-beta.1.md
+          if ($LASTEXITCODE) { throw 'Draft creation/upload failed; nothing is promoted automatically' }
+          $release=gh api "repos/$env:GH_REPO/releases/tags/$tag" | ConvertFrom-Json
+          if ($LASTEXITCODE) { throw 'Cannot read back draft assets' }
+          foreach ($file in $assets) {
+            $name=[IO.Path]::GetFileName($file)
+            $remote=@($release.assets | Where-Object name -eq $name)
+            $sha=(Get-FileHash $file).Hash.ToLowerInvariant()
+            if ($remote.Count -ne 1 -or $remote[0].size -ne (Get-Item $file).Length) { throw "Remote asset size/name mismatch: $name" }
+            if ($remote[0].digest) {
+              if ($remote[0].digest -ne "sha256:$sha") { throw "Remote asset digest mismatch: $name" }
+            } else {
+              $dir=Join-Path $env:RUNNER_TEMP ([Guid]::NewGuid().ToString('N'))
+              gh release download $tag --pattern $name --dir $dir
+              if ($LASTEXITCODE -or (Get-FileHash (Join-Path $dir $name)).Hash.ToLowerInvariant() -ne $sha) { throw "Downloaded asset hash mismatch: $name" }
+            }
+          }
+          Confirm-VerifiedTag $tag
+          gh release edit $tag --draft=false --prerelease
+          if ($LASTEXITCODE) { throw 'Verified draft could not be made public' }
+          gh release view $tag --json url --jq '.url'
