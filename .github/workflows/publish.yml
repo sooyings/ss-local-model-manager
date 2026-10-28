@@ -77,10 +77,44 @@ jobs:
             if ($LASTEXITCODE) { throw 'Cannot create immutable release tag' }
           }
           Confirm-VerifiedTag $tag
-          gh release create $tag @assets --verify-tag --draft --prerelease --title 'SS本地模型管理器 4.0.0-beta.1 · CPU测试版' --notes-file docs/RELEASE-NOTES-4.0.0-beta.1.md
-          if ($LASTEXITCODE) { throw 'Draft creation/upload failed; nothing is promoted automatically' }
-          $release=gh api "repos/$env:GH_REPO/releases/tags/$tag" | ConvertFrom-Json
-          if ($LASTEXITCODE) { throw 'Cannot read back draft assets' }
+          $all=gh api "repos/$env:GH_REPO/releases?per_page=100" | ConvertFrom-Json
+          if ($LASTEXITCODE) { throw 'Cannot inspect existing release drafts' }
+          $found=@($all | Where-Object tag_name -eq $tag)
+          if ($found.Count -gt 1) { throw 'Ambiguous release drafts' }
+          if ($found.Count -eq 0) {
+            gh release create $tag @assets --verify-tag --draft --prerelease --title 'SS本地模型管理器 4.0.0-beta.1 · CPU测试版' --notes-file docs/RELEASE-NOTES-4.0.0-beta.1.md
+            if ($LASTEXITCODE) { throw 'Draft creation/upload failed; no release was promoted' }
+            $all=gh api "repos/$env:GH_REPO/releases?per_page=100" | ConvertFrom-Json
+            if ($LASTEXITCODE) { throw 'Cannot read newly created draft' }
+            $found=@($all | Where-Object tag_name -eq $tag)
+          } else {
+            # Keep an existing private screenshot archive, but prove that each image
+            # equals the trusted artifact. ZIP timestamps need not be reproducible.
+            if (!$found[0].draft) { throw 'Release is already public; it will not be overwritten' }
+            $dir=Join-Path $env:RUNNER_TEMP ([Guid]::NewGuid().ToString('N'))
+            $zipName='SSLocalModelManager-4.0.0-beta.1-screenshots.zip'
+            gh release download $tag --pattern $zipName --dir $dir
+            if ($LASTEXITCODE) { throw 'Cannot recover private screenshot archive' }
+            $zipPath=Join-Path $dir $zipName
+            $expected=@{}
+            Get-ChildItem verified/dist/screenshots -Filter '*.png' | ForEach-Object { $expected[$_.Name]=(Get-FileHash $_.FullName).Hash.ToLowerInvariant() }
+            $zip=[IO.Compression.ZipFile]::OpenRead($zipPath)
+            $seen=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+            try {
+              foreach ($entry in $zip.Entries) {
+                if ($entry.FullName -ne $entry.Name -or !$expected.ContainsKey($entry.Name) -or !$seen.Add($entry.Name)) { throw 'Unexpected image archive entry' }
+                $stream=$entry.Open()
+                $hash=[Security.Cryptography.SHA256]::Create()
+                try { $actual=[Convert]::ToHexString($hash.ComputeHash($stream)).ToLowerInvariant() } finally { $stream.Dispose(); $hash.Dispose() }
+                if ($actual -ne $expected[$entry.Name]) { throw 'Private screenshot archive differs from verified images' }
+              }
+              if ($seen.Count -ne $expected.Count) { throw 'Private screenshot archive is incomplete' }
+            } finally { $zip.Dispose() }
+            $assets[3]=$zipPath
+          }
+          if ($found.Count -ne 1 -or !$found[0].draft) { throw 'Expected a single private draft' }
+          $release=gh api "repos/$env:GH_REPO/releases/$($found[0].id)" | ConvertFrom-Json
+          if ($LASTEXITCODE -or $release.assets.Count -ne $assets.Count) { throw 'Cannot read expected draft assets' }
           foreach ($file in $assets) {
             $name=[IO.Path]::GetFileName($file)
             $remote=@($release.assets | Where-Object name -eq $name)
@@ -95,6 +129,6 @@ jobs:
             }
           }
           Confirm-VerifiedTag $tag
-          gh release edit $tag --draft=false --prerelease
-          if ($LASTEXITCODE) { throw 'Verified draft could not be made public' }
-          gh release view $tag --json url --jq '.url'
+          $published=gh api --method PATCH "repos/$env:GH_REPO/releases/$($release.id)" -F draft=false -F prerelease=true | ConvertFrom-Json
+          if ($LASTEXITCODE -or $published.draft -or !$published.prerelease) { throw 'Verified draft could not be made public' }
+          Write-Host $published.html_url
