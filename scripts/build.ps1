@@ -11,13 +11,25 @@ if (!(Test-Path build/llama-source/.git)) {
 }
 $revision = (git -C build/llama-source rev-parse HEAD).Trim()
 if ($revision -ne '5320c87ff0d994845b44ce7976f10055ec697447') { throw "Unexpected official engine revision: $revision" }
-cmake -S build/llama-source -B build/llama-build -A x64 -DBUILD_SHARED_LIBS=OFF -DGGML_NATIVE=OFF -DGGML_OPENMP=OFF -DLLAMA_CURL=OFF -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_SERVER=ON -DLLAMA_SERVER_WEBUI=OFF -DCMAKE_POLICY_DEFAULT_CMP0091=NEW -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
+cmake -S build/llama-source -B build/llama-build -A x64 -DBUILD_SHARED_LIBS=OFF -DGGML_NATIVE=OFF -DGGML_OPENMP=OFF -DLLAMA_OPENSSL=OFF -DLLAMA_USE_PREBUILT_UI=OFF -DLLAMA_BUILD_UI=OFF -DLLAMA_BUILD_APP=OFF -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_SERVER=ON -DLLAMA_SERVER_WEBUI=OFF -DCMAKE_POLICY_DEFAULT_CMP0091=NEW -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
 if ($LASTEXITCODE) { throw 'Engine configuration failed' }
 cmake --build build/llama-build --config Release --target llama-server -j 4
 if ($LASTEXITCODE) { throw 'Engine compilation failed' }
 $runtime = Join-Path $root 'build/engine'
 New-Item $runtime -ItemType Directory -Force | Out-Null
 Copy-Item build/llama-build/bin/Release/llama-server.exe $runtime
+# Regression gate: the local-only engine must run without a developer PATH or external TLS DLLs.
+$nativeInfo=[Diagnostics.ProcessStartInfo]::new((Join-Path $runtime 'llama-server.exe'),'--version')
+$nativeInfo.UseShellExecute=$false
+$nativeInfo.CreateNoWindow=$true
+$nativeInfo.RedirectStandardOutput=$true
+$nativeInfo.RedirectStandardError=$true
+$nativeInfo.Environment['PATH']=$runtime+';'+[Environment]::GetFolderPath('System')
+$native=[Diagnostics.Process]::Start($nativeInfo)
+if (!$native.WaitForExit(30000)) { $native.Kill(); throw 'Standalone native engine version check timed out' }
+Write-Host $native.StandardOutput.ReadToEnd() $native.StandardError.ReadToEnd()
+if ($native.ExitCode) { throw "Standalone native engine dependency check failed: $($native.ExitCode)" }
+$native.Dispose()
 $notices = Join-Path $root 'publish/app/third-party/llama.cpp'
 New-Item $notices -ItemType Directory -Force | Out-Null
 Copy-Item build/llama-source/LICENSE $notices

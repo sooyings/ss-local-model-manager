@@ -25,7 +25,16 @@ jobs:
           path: |
             build/llama-source
             build/llama-build
-          key: ss-static-cpu-b11901-v2-windows2025
+          key: ss-static-cpu-b11901-notls-v3-windows2025
+          restore-keys: ss-static-cpu-b11901-v2-windows2025
+      - name: Inspect cached native imports
+        shell: pwsh
+        run: |
+          $cached='build/llama-build/bin/Release/llama-server.exe'
+          if (Test-Path $cached) {
+            $dump=Get-ChildItem 'C:/Program Files/Microsoft Visual Studio/*/*/VC/Tools/MSVC/*/bin/Hostx64/x64/dumpbin.exe' | Sort-Object FullName -Descending | Select-Object -First 1
+            if ($dump) { & $dump.FullName /dependents $cached }
+          }
       - name: Core regression checks
         shell: pwsh
         run: ./scripts/check.ps1
@@ -51,7 +60,7 @@ jobs:
           path: |
             build/llama-source
             build/llama-build
-          key: ss-static-cpu-b11901-v2-windows2025
+          key: ss-static-cpu-b11901-notls-v3-windows2025
       - name: Install, real CPU inference, KV, restart and uninstall
         shell: pwsh
         timeout-minutes: 12
