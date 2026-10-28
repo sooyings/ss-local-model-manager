@@ -31,7 +31,7 @@ namespace SS.Core {
   public static string BuildArguments(string model,string alias,int context,int threads,int port){
    if(!Path.IsPathRooted(model)||!ValidId(alias)||context<256||context>262144||threads<1||threads>256)Fail("invalid_model_settings");
    try{AppPaths.ValidatePort(port);}catch{Fail("invalid_port");}
-   return "-m "+Quote(model)+" --host 127.0.0.1 --port "+port+" --alias "+alias+" -c "+context+" -t "+threads+" -ngl 0 -np 1 --slots --metrics";
+   return "-m "+Quote(model)+" --host 127.0.0.1 --port "+port+" --alias "+alias+" -c "+context+" -t "+threads+" -ngl 0 -np 1 --slots --metrics --log-verbosity 4 --log-colors off";
   }
   public static string BuildArguments(string model,string alias,int context,int threads,int port,Dictionary<string,object> settings){
    string args=BuildArguments(model,alias,context,threads,port);
@@ -136,13 +136,21 @@ namespace SS.Core {
   public static bool RecoverStoppedService(){
    using(var gate=Gate()){if(!Lock(gate))return false;try{return DiscardDeadLease(Lease());}finally{gate.ReleaseMutex();}}
   }
-  public static void Start(string id){
+  public static void Start(string id){StartManaged(id,false,null);}
+  public static void Restart(string id,string expectedAlias){if(!ValidId(expectedAlias))Fail("model_changed");StartManaged(id,true,expectedAlias);}
+  static void StartManaged(string id,bool forceRestart,string expectedAlias){
    AppPaths.Initialize();using(var gate=Gate()){if(!Lock(gate))Fail("service_busy");try{
-    var old=Lease();if(old!=null){if(Owned(old)&&Str(old,"modelId")==id)return;if(!DiscardDeadLease(old))Fail("existing_or_stale_service");}
-    var m=Model(id);if(AnyExternalEngine())Fail("external_model_running");RuntimeTrust.Require(RuntimePath);VerifyEngine(RuntimePath);
+    Model(id);RuntimeTrust.Require(RuntimePath);VerifyEngine(RuntimePath);
+    var old=Lease();
+    if(expectedAlias!=null&&(!Owned(old)||Str(old,"alias")!=expectedAlias))Fail("model_changed");
+    if(old!=null){
+     if(Owned(old)){if(Str(old,"modelId")==id&&!forceRestart)return;StopLocked();}
+     else if(!DiscardDeadLease(old))Fail("existing_or_stale_service");
+    }
+    if(AnyExternalEngine())Fail("external_model_running");
     var probe=new System.Net.Sockets.TcpListener(IPAddress.Loopback,AppPaths.DirectPort);try{probe.Start();}catch{Fail("port_in_use");}finally{probe.Stop();}
     var p=Process.Start(new ProcessStartInfo(HostExe,"--host "+id){UseShellExecute=false,CreateNoWindow=true,WindowStyle=ProcessWindowStyle.Hidden});
-    if(p==null)Fail("host_start_failed");
+    if(p==null)Fail("host_start_failed");p.Dispose();
    }finally{gate.ReleaseMutex();}}
    var until=DateTime.UtcNow.AddSeconds(15);while(DateTime.UtcNow<until){var l=Lease();if(Owned(l)&&Str(l,"modelId")==id)return;Thread.Sleep(100);}Fail("host_start_not_confirmed");
   }
@@ -161,8 +169,10 @@ namespace SS.Core {
    }catch{return false;}
   }
   public static void Stop(){
+   AppPaths.Initialize();using(var gate=Gate()){if(!Lock(gate))Fail("service_busy");try{StopLocked();}finally{gate.ReleaseMutex();}}
+  }
+  static void StopLocked(){
    if(!StopAdmissionSupported)Fail("stop_admission_control_required");
-   AppPaths.Initialize();using(var gate=Gate()){if(!Lock(gate))Fail("service_busy");try{
     var lease=Lease();if(!Owned(lease))Fail("service_not_owned");string session=Str(lease,"sessionId"),request=Guid.NewGuid().ToString("N");
     string path=StatusPath(session,"stop-request-");if(File.Exists(path))Fail("stop_already_pending");
     AppPaths.AtomicWrite(path,Json.Serialize(new Dictionary<string,object>{{"sessionId",session},{"requestId",request},{"deadlineUtc",DateTime.UtcNow.AddSeconds(6).ToString("o")}}));
@@ -171,7 +181,6 @@ namespace SS.Core {
       var cleaned=DateTime.UtcNow.AddSeconds(5);while(DateTime.UtcNow<cleaned){var remaining=Lease();if(!File.Exists(LeasePath))return;if(remaining!=null&&Str(remaining,"sessionId")!=session)Fail("service_session_changed");Thread.Sleep(25);}Fail("stop_cleanup_pending");
      }Fail(Str(result,"status"));}Thread.Sleep(100);}
     Fail("stop_not_confirmed");
-   }finally{gate.ReleaseMutex();}}
   }
   public static void MainHost(string id){
    AppPaths.Initialize();string session=Guid.NewGuid().ToString("N"),requestPath=StatusPath(session,"stop-request-"),responsePath=StatusPath(session,"stop-result-");Process engine=null;GatewayProxy proxy=null;bool published=false;int backendPort=0;string apiKey="";var gateRequests=new AdmissionGate();

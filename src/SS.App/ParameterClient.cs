@@ -34,7 +34,7 @@ namespace ModelConsole {
     if(NativeHost.RunningAlias()!=alias)throw new InvalidOperationException("model_changed");
     AppPaths.AtomicWrite(AppPaths.ModelsJson,Json.Serialize(root));
     bool restart=Get(payload,"restart") is bool&&(bool)Get(payload,"restart");bool restarted=false;string error=null;
-    if(restart)try{NativeHost.Stop();NativeHost.Start(found.Key);restarted=true;}catch(Exception ex){error=ex.Message;}
+    if(restart)try{NativeHost.Restart(found.Key,alias);restarted=true;}catch(Exception ex){error=ex.Message;}
     var result=new Dictionary<string,object>{{"ok",true},{"saved",true},{"restarted",restarted}};if(error!=null)result["error"]=error;return result;
    }
    if(action!="load")throw new ArgumentException("unsupported_action");

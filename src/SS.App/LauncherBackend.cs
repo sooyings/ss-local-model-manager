@@ -168,7 +168,7 @@ namespace ModelLauncher {
     // ------------------------------------------------------------------ 后端
     internal static class Backend {
         public static Snapshot Probe() {
-            Snapshot s=new Snapshot(); if(SS.Core.NativeHost.RunningAlias()=="")return s;
+            Snapshot s=new Snapshot();s.RunningAlias=SS.Core.NativeHost.RunningAlias();if(s.RunningAlias=="")return s;s.Loading=true;
             try {var request=(HttpWebRequest)WebRequest.Create(SS.Core.AppPaths.DirectBaseUrl+"/health");request.Proxy=null;request.Timeout=1200;
              using(var response=request.GetResponse())using(var reader=new StreamReader(response.GetResponseStream())){
               var d=new JavaScriptSerializer().Deserialize<Dictionary<string,object>>(reader.ReadToEnd());string state=d.ContainsKey("status")?Convert.ToString(d["status"]):"";

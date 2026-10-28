@@ -460,7 +460,7 @@ namespace ModelConsole {
    try{
     var result=await Task.Run(()=>ParameterClient.Call(payload));parameters=null;parameterEdits.Clear();parameterAttemptedAlias="";
     if(result.ContainsKey("error"))SetNotice("配置已保留，但重启未完成，请查看日志。","Settings retained, but restart failed; check logs.");else if(InferenceMonitor.Adapter.Get(result,"unchanged") is bool&&(bool)InferenceMonitor.Adapter.Get(result,"unchanged"))SetNotice("参数未变化，无需重启。","No changes; restart not needed.");
-    else if(InferenceMonitor.Adapter.Get(result,"restarted") is bool&&(bool)InferenceMonitor.Adapter.Get(result,"restarted"))SetNotice("参数已应用，模型已重新就绪。","Settings applied; model ready.");
+    else if(InferenceMonitor.Adapter.Get(result,"restarted") is bool&&(bool)InferenceMonitor.Adapter.Get(result,"restarted"))SetNotice("配置已保存，正在重启加载…","Settings saved; restarted model is loading…");
     else SetNotice("配置已备份并保存，下次启动生效。","Backed up and saved; applies on next start.");
    }catch(Exception ex){SetNotice(ex.Message.Contains("config_saved")?"配置已保留，但重启未完成，请查看日志。":"参数未保存，请重新读取并检查范围或模型状态。",ex.Message.Contains("config_saved")?"Settings retained, but restart failed; check logs.":"Settings not saved; reload and check ranges / model state.");LogError(ex);}
    finally{busy=false;generation++;if(!closed)Build();}await Poll();
@@ -548,7 +548,7 @@ namespace ModelConsole {
    try{
     var gpu=CurrentPage==4&&parameterSection==1&&!powerBusy&&!powerReading?Task.Run(()=>{try{return powerDriver.Read();}catch{return null;}}):null;
     var telemetry=Task.Run(()=>{var s=collector.Poll();host.Poll();thermals.Poll();return s;});var backend=Task.Run(()=>Backend.Probe());if(gpu!=null)await Task.WhenAll(telemetry,backend,gpu);else await Task.WhenAll(telemetry,backend);
-    if(closed||paused||gen!=generation)return;last=telemetry.Result;service=backend.Result;if(gpu!=null&&!powerBusy)powerState=gpu.Result;updated=DateTime.Now;sampleError=false;if(!busy&&File.GetLastWriteTimeUtc(Registry.ModelsJson)!=registryStamp)ReloadModels();
+    if(closed||paused||gen!=generation)return;last=telemetry.Result;service=backend.Result;if(service.Ready&&(noticeZh=="正在加载，请稍候…"||noticeZh=="配置已保存，正在重启加载…"))notice="";if(gpu!=null&&!powerBusy)powerState=gpu.Result;updated=DateTime.Now;sampleError=false;if(!busy&&File.GetLastWriteTimeUtc(Registry.ModelsJson)!=registryStamp)ReloadModels();
     history.Add(last,(DateTime.UtcNow-new DateTime(1970,1,1)).TotalSeconds,host,thermals,last.Power);
     if(!last.Online)parameterAttemptedAlias="";
     if(parameters!=null&&PString(parameters,"alias")!=last.Model){parameters=null;parameterEdits.Clear();if(CurrentPage==4)Build();}
@@ -559,7 +559,7 @@ namespace ModelConsole {
    if(powerBusy||busy||(start&&Selected==null))return;string target=selected;busy=true;generation++;SetNotice(start?"正在加载，请稍候…":"正在停止并释放显存…",start?"Loading model…":"Stopping and releasing VRAM…");Build();
    try{await Task.Run(()=>Backend.Run(start?"start":"stop",target));var check=await Task.Run(()=>Backend.Probe());service=check;
     var entry=models.FirstOrDefault(x=>x.Id==target);bool okay=start?check.Ready&&entry!=null&&check.RunningAlias==entry.Alias:!check.Any;
-    if(okay)SetNotice(start?"模型已就绪":"服务已停止",start?"Model ready":"Services stopped");else SetNotice("状态未就绪，请查看日志","State not ready; check logs");
+    if(okay)SetNotice(start?"模型已就绪":"服务已停止",start?"Model ready":"Services stopped");else if(start&&check.Loading){}else SetNotice("状态未就绪，请查看日志","State not ready; check logs");
    }catch(Exception ex){SetNotice("操作未完成，请查看日志","Operation failed; check logs");LogError(ex);}
    finally{busy=false;generation++;Build();} await Poll();
   }
@@ -571,7 +571,7 @@ namespace ModelConsole {
   [DllImport("user32.dll")]static extern bool SetForegroundWindow(IntPtr h);
   [DllImport("user32.dll")]static extern bool ShowWindow(IntPtr h,int cmd);
   [STAThread]public static int Main(string[] args){
-   try{SS.Core.AppPaths.Initialize();if(args.Length==2&&args[0]=="--telemetry"){File.WriteAllText(args[1],new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(new InferenceMonitor.Collector().Poll()));return 0;}if(args.Length==2&&args[0]=="--import"){SS.Core.ModelDiscovery.AddFiles(new[]{args[1]});return 0;}if(args.Length>=2&&args[0]=="--service"){if(args.Length==3&&args[1]=="start")SS.Core.NativeHost.Start(args[2]);else if(args.Length==2&&args[1]=="stop")SS.Core.NativeHost.Stop();else return 2;return 0;}if(args.Length>1&&args[0]=="--host"){SS.Core.NativeHost.MainHost(args[1]);return 0;}bool preview=args.Length>1&&args[0]=="--preview",created;
+   try{SS.Core.AppPaths.Initialize();if(args.Length==2&&args[0]=="--telemetry"){File.WriteAllText(args[1],new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(new InferenceMonitor.Collector().Poll()));return 0;}if(args.Length==2&&args[0]=="--import"){SS.Core.ModelDiscovery.AddFiles(new[]{args[1]});return 0;}if(args.Length>=2&&args[0]=="--service"){if(args.Length==3&&args[1]=="start")SS.Core.NativeHost.Start(args[2]);else if(args.Length==3&&args[1]=="restart")SS.Core.NativeHost.Restart(args[2],SS.Core.NativeHost.RunningAlias());else if(args.Length==2&&args[1]=="stop")SS.Core.NativeHost.Stop();else return 2;return 0;}if(args.Length>1&&args[0]=="--host"){SS.Core.NativeHost.MainHost(args[1]);return 0;}bool preview=args.Length>1&&args[0]=="--preview",created;
     using(var mutex=new Mutex(true,preview?"Local\\SSLocalModelManagerPreview":"Local\\SSLocalModelManager",out created)){
      if(!created){var h=FindWindow(null,"SS本地模型管理器");if(h==IntPtr.Zero)h=FindWindow(null,"SS Local Model Manager");if(h==IntPtr.Zero)h=FindWindow(null,"本地模型启动器");if(h!=IntPtr.Zero){ShowWindow(h,9);SetForegroundWindow(h);}return 0;}
      var app=new Application();var window=new ConsoleWindow();
