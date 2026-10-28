@@ -1,0 +1,77 @@
+name: Windows build and verification
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['.github/workflows/publish.yml']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: windows-2025
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/cache@v4
+        id: native-cache
+        with:
+          path: |
+            build/llama-source
+            build/llama-build
+          key: ss-static-cpu-b11901-notls-v3-windows2025
+          restore-keys: ss-static-cpu-b11901-v2-windows2025
+      - name: Inspect cached native imports
+        shell: pwsh
+        run: |
+          $cached='build/llama-build/bin/Release/llama-server.exe'
+          if (Test-Path $cached) {
+            $dump=Get-ChildItem 'C:/Program Files/Microsoft Visual Studio/*/*/VC/Tools/MSVC/*/bin/Hostx64/x64/dumpbin.exe' | Sort-Object FullName -Descending | Select-Object -First 1
+            if ($dump) { & $dump.FullName /dependents $cached }
+          }
+      - name: Core regression checks
+        shell: pwsh
+        run: ./scripts/check.ps1
+      - name: Prepare isolated installer compiler
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $dir=Join-Path $env:RUNNER_TEMP 'ss-inno'
+          $exe=Join-Path $env:RUNNER_TEMP 'innosetup-6.7.3.exe'
+          Invoke-WebRequest 'https://github.com/jrsoftware/issrc/releases/download/is-6_7_3/innosetup-6.7.3.exe' -OutFile $exe
+          $signature=Get-AuthenticodeSignature $exe
+          if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'Pyrsys B.V.') { throw 'Inno publisher signature validation failed' }
+          $p=Start-Process $exe -ArgumentList '/CURRENTUSER','/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-',('/DIR="{0}"' -f $dir) -PassThru -Wait -WindowStyle Hidden
+          if ($p.ExitCode -or !(Test-Path "$dir/ISCC.exe")) { throw 'Compiler installation failed' }
+          "SS_ISCC=$dir/ISCC.exe" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Build self-contained application and installer
+        shell: pwsh
+        run: ./scripts/build.ps1 -Iscc "$env:SS_ISCC" -SkipChecks -SkipSmoke
+      - name: Save validated native build cache
+        if: steps.native-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            build/llama-source
+            build/llama-build
+          key: ss-static-cpu-b11901-notls-v3-windows2025
+      - name: Install, real CPU inference, KV, restart and uninstall
+        shell: pwsh
+        timeout-minutes: 12
+        run: ./scripts/smoke.ps1
+      - name: Preserve verification output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ss-windows-verification
+          path: |
+            dist/
+            tests/bin/Release/net10.0-windows/
+          retention-days: 14

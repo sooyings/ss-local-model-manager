@@ -1,0 +1,384 @@
+{
+  "version": "3.2.0",
+  "reviewed": "2026-10-27",
+  "models": {
+    "qwen3.6-35b-a3b-uncensored": {
+      "temperature": {
+        "value": 1.0,
+        "basis": "model_guidance",
+        "why_zh": "控制采样随机性。较高更发散，较低更集中；数值不是准确率保证。",
+        "why_en": "Controls sampling randomness. Higher is more varied; lower is more focused, not a guarantee of accuracy.",
+        "sources": [
+          "https://huggingface.co/HauhauCS/Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive",
+          "https://huggingface.co/Qwen/Qwen3.6-35B-A3B"
+        ]
+      },
+      "top_p": {
+        "value": 0.95,
+        "basis": "model_guidance",
+        "why_zh": "保留累计概率范围；与温度共同作用，过低可能损失表达选择。",
+        "why_en": "Retains a cumulative probability mass. Works with temperature; too low can narrow expression.",
+        "sources": [
+          "https://huggingface.co/HauhauCS/Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive",
+          "https://huggingface.co/Qwen/Qwen3.6-35B-A3B"
+        ]
+      },
+      "top_k": {
+        "value": 20,
+        "basis": "model_guidance",
+        "why_zh": "每步候选token数量，候选越多不等于更聪明。",
+        "why_en": "Limits candidate tokens per step; more candidates do not imply better reasoning.",
+        "sources": [
+          "https://huggingface.co/HauhauCS/Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive",
+          "https://huggingface.co/Qwen/Qwen3.6-35B-A3B"
+        ]
+      },
+      "min_p": {
+        "value": 0,
+        "basis": "model_guidance",
+        "why_zh": "相对最高概率token的过滤阈值；0表示不增加此层过滤。",
+        "why_en": "Relative probability filter; zero disables this extra filter.",
+        "sources": [
+          "https://huggingface.co/HauhauCS/Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive",
+          "https://huggingface.co/Qwen/Qwen3.6-35B-A3B"
+        ]
+      },
+      "repeat_penalty": {
+        "value": 1,
+        "basis": "local_baseline",
+        "why_zh": "1表示不追加重复惩罚；提高可能减少复述，也可能损害术语、人物名和代码重复。",
+        "why_en": "One adds no repetition penalty. Higher may reduce loops but also distort repeated terms, names, or code.",
+        "sources": [
+          "https://huggingface.co/HauhauCS/Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive",
+          "https://huggingface.co/Qwen/Qwen3.6-35B-A3B"
+        ]
+      },
+      "threads": {
+        "value": 10,
+        "basis": "local_baseline",
+        "why_zh": "CPU推理线程。i7-12700F为8P+4E/20线程；线程越多并不必然越快。",
+        "why_en": "CPU inference threads. The i7-12700F has 8 P + 4 E cores / 20 threads; more is not always faster.",
+        "sources": [
+          "https://huggingface.co/HauhauCS/Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive",
+          "https://huggingface.co/Qwen/Qwen3.6-35B-A3B"
+        ]
+      },
+      "cacheRam": {
+        "value": 8192,
+        "basis": "local_baseline",
+        "why_zh": "空闲提示词缓存预算（MiB），不是GPU KV显存。更大有利于多会话复用，也会增加系统内存压力。",
+        "why_en": "Idle prompt-cache budget in MiB, not GPU KV VRAM. Larger budgets can reuse more sessions but consume system RAM.",
+        "sources": [
+          "https://huggingface.co/HauhauCS/Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive",
+          "https://huggingface.co/Qwen/Qwen3.6-35B-A3B"
+        ]
+      },
+      "reasoning_budget": {
+        "value": 4096,
+        "basis": "local_baseline",
+        "why_zh": "思考token预算，不是正文输出上限。提高可能帮助复杂推理，也可能增加等待；关闭思考时预算不等于启用开关。",
+        "why_en": "Thinking-token budget, not the content-output limit. More may help difficult reasoning but can increase latency; it is not the thinking-mode switch.",
+        "sources": [
+          "https://huggingface.co/HauhauCS/Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive",
+          "https://huggingface.co/Qwen/Qwen3.6-35B-A3B"
+        ]
+      }
+    },
+    "qwen3.5-9b": {
+      "temperature": {
+        "value": 1.0,
+        "basis": "model_guidance",
+        "why_zh": "控制采样随机性。较高更发散，较低更集中；数值不是准确率保证。",
+        "why_en": "Controls sampling randomness. Higher is more varied; lower is more focused, not a guarantee of accuracy.",
+        "sources": [
+          "https://huggingface.co/Qwen/Qwen3.5-9B"
+        ]
+      },
+      "top_p": {
+        "value": 0.95,
+        "basis": "model_guidance",
+        "why_zh": "保留累计概率范围；与温度共同作用，过低可能损失表达选择。",
+        "why_en": "Retains a cumulative probability mass. Works with temperature; too low can narrow expression.",
+        "sources": [
+          "https://huggingface.co/Qwen/Qwen3.5-9B"
+        ]
+      },
+      "top_k": {
+        "value": 20,
+        "basis": "model_guidance",
+        "why_zh": "每步候选token数量，候选越多不等于更聪明。",
+        "why_en": "Limits candidate tokens per step; more candidates do not imply better reasoning.",
+        "sources": [
+          "https://huggingface.co/Qwen/Qwen3.5-9B"
+        ]
+      },
+      "min_p": {
+        "value": 0,
+        "basis": "model_guidance",
+        "why_zh": "相对最高概率token的过滤阈值；0表示不增加此层过滤。",
+        "why_en": "Relative probability filter; zero disables this extra filter.",
+        "sources": [
+          "https://huggingface.co/Qwen/Qwen3.5-9B"
+        ]
+      },
+      "repeat_penalty": {
+        "value": 1,
+        "basis": "local_baseline",
+        "why_zh": "1表示不追加重复惩罚；提高可能减少复述，也可能损害术语、人物名和代码重复。",
+        "why_en": "One adds no repetition penalty. Higher may reduce loops but also distort repeated terms, names, or code.",
+        "sources": [
+          "https://huggingface.co/Qwen/Qwen3.5-9B"
+        ]
+      },
+      "threads": {
+        "value": 8,
+        "basis": "starting_point",
+        "why_zh": "CPU推理线程。i7-12700F为8P+4E/20线程；线程越多并不必然越快。",
+        "why_en": "CPU inference threads. The i7-12700F has 8 P + 4 E cores / 20 threads; more is not always faster.",
+        "sources": [
+          "https://huggingface.co/Qwen/Qwen3.5-9B"
+        ]
+      },
+      "cacheRam": {
+        "value": 4096,
+        "basis": "starting_point",
+        "why_zh": "空闲提示词缓存预算（MiB），不是GPU KV显存。更大有利于多会话复用，也会增加系统内存压力。",
+        "why_en": "Idle prompt-cache budget in MiB, not GPU KV VRAM. Larger budgets can reuse more sessions but consume system RAM.",
+        "sources": [
+          "https://huggingface.co/Qwen/Qwen3.5-9B"
+        ]
+      },
+      "reasoning_budget": {
+        "value": 2048,
+        "basis": "starting_point",
+        "why_zh": "思考token预算，不是正文输出上限。提高可能帮助复杂推理，也可能增加等待；关闭思考时预算不等于启用开关。",
+        "why_en": "Thinking-token budget, not the content-output limit. More may help difficult reasoning but can increase latency; it is not the thinking-mode switch.",
+        "sources": [
+          "https://huggingface.co/Qwen/Qwen3.5-9B"
+        ]
+      }
+    },
+    "qwen3.8-flash-next-iq3_xxs": {
+      "temperature": {
+        "value": 1.0,
+        "basis": "local_baseline",
+        "why_zh": "控制采样随机性。较高更发散，较低更集中；数值不是准确率保证。",
+        "why_en": "Controls sampling randomness. Higher is more varied; lower is more focused, not a guarantee of accuracy.",
+        "sources": [
+          "https://huggingface.co/ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF"
+        ]
+      },
+      "top_p": {
+        "value": 0.95,
+        "basis": "local_baseline",
+        "why_zh": "保留累计概率范围；与温度共同作用，过低可能损失表达选择。",
+        "why_en": "Retains a cumulative probability mass. Works with temperature; too low can narrow expression.",
+        "sources": [
+          "https://huggingface.co/ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF"
+        ]
+      },
+      "top_k": {
+        "value": 20,
+        "basis": "local_baseline",
+        "why_zh": "每步候选token数量，候选越多不等于更聪明。",
+        "why_en": "Limits candidate tokens per step; more candidates do not imply better reasoning.",
+        "sources": [
+          "https://huggingface.co/ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF"
+        ]
+      },
+      "min_p": {
+        "value": 0,
+        "basis": "local_baseline",
+        "why_zh": "相对最高概率token的过滤阈值；0表示不增加此层过滤。",
+        "why_en": "Relative probability filter; zero disables this extra filter.",
+        "sources": [
+          "https://huggingface.co/ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF"
+        ]
+      },
+      "repeat_penalty": {
+        "value": 1,
+        "basis": "local_baseline",
+        "why_zh": "1表示不追加重复惩罚；提高可能减少复述，也可能损害术语、人物名和代码重复。",
+        "why_en": "One adds no repetition penalty. Higher may reduce loops but also distort repeated terms, names, or code.",
+        "sources": [
+          "https://huggingface.co/ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF"
+        ]
+      },
+      "workers": {
+        "value": 6,
+        "basis": "local_baseline",
+        "why_zh": "Strata CPU工作线程，需要结合该模型的专家装载与缓存策略；不能直接复用另一量化模型的最优值。",
+        "why_en": "Strata CPU workers depend on the model expert-loading/cache strategy; do not copy another quantization blindly.",
+        "sources": [
+          "https://huggingface.co/ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF"
+        ]
+      },
+      "reserve": {
+        "value": 2560,
+        "basis": "local_baseline",
+        "why_zh": "Strata显存预留预算（MiB）。12GB单卡要给桌面和视觉组件留余量；它不是对其他程序占用的硬隔离保证。",
+        "why_en": "Strata VRAM reserve in MiB. Leave room for desktop and vision on the 12GB GPU; this is not a hard isolation guarantee.",
+        "sources": [
+          "https://huggingface.co/ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF"
+        ]
+      },
+      "reasoning_budget": {
+        "value": 1024,
+        "basis": "local_baseline",
+        "why_zh": "思考token预算，不是正文输出上限。提高可能帮助复杂推理，也可能增加等待；关闭思考时预算不等于启用开关。",
+        "why_en": "Thinking-token budget, not the content-output limit. More may help difficult reasoning but can increase latency; it is not the thinking-mode switch.",
+        "sources": [
+          "https://huggingface.co/ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF"
+        ]
+      }
+    },
+    "qwen3.8-flash-next-swift-iq2_xs": {
+      "temperature": {
+        "value": 1.0,
+        "basis": "local_baseline",
+        "why_zh": "控制采样随机性。较高更发散，较低更集中；数值不是准确率保证。",
+        "why_en": "Controls sampling randomness. Higher is more varied; lower is more focused, not a guarantee of accuracy.",
+        "sources": [
+          "https://huggingface.co/ukisai/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-GGUF"
+        ]
+      },
+      "top_p": {
+        "value": 0.95,
+        "basis": "local_baseline",
+        "why_zh": "保留累计概率范围；与温度共同作用，过低可能损失表达选择。",
+        "why_en": "Retains a cumulative probability mass. Works with temperature; too low can narrow expression.",
+        "sources": [
+          "https://huggingface.co/ukisai/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-GGUF"
+        ]
+      },
+      "top_k": {
+        "value": 20,
+        "basis": "local_baseline",
+        "why_zh": "每步候选token数量，候选越多不等于更聪明。",
+        "why_en": "Limits candidate tokens per step; more candidates do not imply better reasoning.",
+        "sources": [
+          "https://huggingface.co/ukisai/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-GGUF"
+        ]
+      },
+      "min_p": {
+        "value": 0,
+        "basis": "local_baseline",
+        "why_zh": "相对最高概率token的过滤阈值；0表示不增加此层过滤。",
+        "why_en": "Relative probability filter; zero disables this extra filter.",
+        "sources": [
+          "https://huggingface.co/ukisai/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-GGUF"
+        ]
+      },
+      "repeat_penalty": {
+        "value": 1,
+        "basis": "local_baseline",
+        "why_zh": "1表示不追加重复惩罚；提高可能减少复述，也可能损害术语、人物名和代码重复。",
+        "why_en": "One adds no repetition penalty. Higher may reduce loops but also distort repeated terms, names, or code.",
+        "sources": [
+          "https://huggingface.co/ukisai/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-GGUF"
+        ]
+      },
+      "workers": {
+        "value": 11,
+        "basis": "local_baseline",
+        "why_zh": "Strata CPU工作线程，需要结合该模型的专家装载与缓存策略；不能直接复用另一量化模型的最优值。",
+        "why_en": "Strata CPU workers depend on the model expert-loading/cache strategy; do not copy another quantization blindly.",
+        "sources": [
+          "https://huggingface.co/ukisai/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-GGUF"
+        ]
+      },
+      "reserve": {
+        "value": 2560,
+        "basis": "local_baseline",
+        "why_zh": "Strata显存预留预算（MiB）。12GB单卡要给桌面和视觉组件留余量；它不是对其他程序占用的硬隔离保证。",
+        "why_en": "Strata VRAM reserve in MiB. Leave room for desktop and vision on the 12GB GPU; this is not a hard isolation guarantee.",
+        "sources": [
+          "https://huggingface.co/ukisai/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-GGUF"
+        ]
+      },
+      "reasoning_budget": {
+        "value": 1024,
+        "basis": "local_baseline",
+        "why_zh": "思考token预算，不是正文输出上限。提高可能帮助复杂推理，也可能增加等待；关闭思考时预算不等于启用开关。",
+        "why_en": "Thinking-token budget, not the content-output limit. More may help difficult reasoning but can increase latency; it is not the thinking-mode switch.",
+        "sources": [
+          "https://huggingface.co/ukisai/Swift-1.5-Qwen3.8-Flash-Next-GSQ-RCO-GGUF"
+        ]
+      }
+    },
+    "qwen3-0.6b-hub": {
+      "temperature": {
+        "value": 0.7,
+        "basis": "model_guidance",
+        "why_zh": "控制采样随机性。较高更发散，较低更集中；数值不是准确率保证。",
+        "why_en": "Controls sampling randomness. Higher is more varied; lower is more focused, not a guarantee of accuracy.",
+        "sources": [
+          "https://huggingface.co/Qwen/Qwen3-0.6B"
+        ]
+      },
+      "top_p": {
+        "value": 0.8,
+        "basis": "model_guidance",
+        "why_zh": "保留累计概率范围；与温度共同作用，过低可能损失表达选择。",
+        "why_en": "Retains a cumulative probability mass. Works with temperature; too low can narrow expression.",
+        "sources": [
+          "https://huggingface.co/Qwen/Qwen3-0.6B"
+        ]
+      },
+      "top_k": {
+        "value": 20,
+        "basis": "model_guidance",
+        "why_zh": "每步候选token数量，候选越多不等于更聪明。",
+        "why_en": "Limits candidate tokens per step; more candidates do not imply better reasoning.",
+        "sources": [
+          "https://huggingface.co/Qwen/Qwen3-0.6B"
+        ]
+      },
+      "min_p": {
+        "value": 0,
+        "basis": "model_guidance",
+        "why_zh": "相对最高概率token的过滤阈值；0表示不增加此层过滤。",
+        "why_en": "Relative probability filter; zero disables this extra filter.",
+        "sources": [
+          "https://huggingface.co/Qwen/Qwen3-0.6B"
+        ]
+      },
+      "repeat_penalty": {
+        "value": 1,
+        "basis": "local_baseline",
+        "why_zh": "1表示不追加重复惩罚；提高可能减少复述，也可能损害术语、人物名和代码重复。",
+        "why_en": "One adds no repetition penalty. Higher may reduce loops but also distort repeated terms, names, or code.",
+        "sources": [
+          "https://huggingface.co/Qwen/Qwen3-0.6B"
+        ]
+      },
+      "threads": {
+        "value": 4,
+        "basis": "local_baseline",
+        "why_zh": "CPU推理线程。i7-12700F为8P+4E/20线程；线程越多并不必然越快。",
+        "why_en": "CPU inference threads. The i7-12700F has 8 P + 4 E cores / 20 threads; more is not always faster.",
+        "sources": [
+          "https://huggingface.co/Qwen/Qwen3-0.6B"
+        ]
+      },
+      "cacheRam": {
+        "value": 64,
+        "basis": "local_baseline",
+        "why_zh": "空闲提示词缓存预算（MiB），不是GPU KV显存。更大有利于多会话复用，也会增加系统内存压力。",
+        "why_en": "Idle prompt-cache budget in MiB, not GPU KV VRAM. Larger budgets can reuse more sessions but consume system RAM.",
+        "sources": [
+          "https://huggingface.co/Qwen/Qwen3-0.6B"
+        ]
+      },
+      "reasoning_budget": {
+        "value": 0,
+        "basis": "local_baseline",
+        "why_zh": "思考token预算，不是正文输出上限。提高可能帮助复杂推理，也可能增加等待；关闭思考时预算不等于启用开关。",
+        "why_en": "Thinking-token budget, not the content-output limit. More may help difficult reasoning but can increase latency; it is not the thinking-mode switch.",
+        "sources": [
+          "https://huggingface.co/Qwen/Qwen3-0.6B"
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,1 @@
+internal static class ReleaseInfo {public const string Version="4.0.0-beta.1";}
